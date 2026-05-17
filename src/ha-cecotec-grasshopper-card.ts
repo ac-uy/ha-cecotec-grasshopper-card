@@ -175,7 +175,7 @@ export class HaCecotecGrasshopperCard extends LitElement {
   // ── Actions ──
 
   private async _refreshEntity() {
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 3000));
     await this._hass?.callService("homeassistant", "update_entity", {
       entity_id: this._config.entity,
     });
@@ -216,7 +216,11 @@ export class HaCecotecGrasshopperCard extends LitElement {
   }
 
   private async _refreshSchedule() {
-    await this._refreshEntity();
+    // Wait for API to persist, then force coordinator refresh
+    await new Promise(r => setTimeout(r, 3000));
+    await this._hass?.callService("homeassistant", "update_entity", {
+      entity_id: this._config.entity,
+    });
   }
 
   private async _removeScheduleEntry(day: number, start?: string) {
