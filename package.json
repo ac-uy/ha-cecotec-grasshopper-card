@@ -1,6 +1,6 @@
 {
   "name": "ha-cecotec-grasshopper-card",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Custom Home Assistant Lovelace card for managing the Cecotec GrassHopper robot mower",
   "type": "module",
   "main": "dist/ha-cecotec-grasshopper-card.js",

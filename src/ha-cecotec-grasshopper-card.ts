@@ -177,7 +177,12 @@ export class HaCecotecGrasshopperCard extends LitElement {
   // ── Actions ──
 
   private async _refreshEntity() {
-    await new Promise(r => setTimeout(r, 3000));
+    // Double refresh: quick check + delayed fallback for slow cloud updates
+    await new Promise(r => setTimeout(r, 1000));
+    await this._hass?.callService("homeassistant", "update_entity", {
+      entity_id: this._config.entity,
+    });
+    await new Promise(r => setTimeout(r, 4000));
     await this._hass?.callService("homeassistant", "update_entity", {
       entity_id: this._config.entity,
     });
