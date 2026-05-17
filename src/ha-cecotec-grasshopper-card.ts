@@ -185,12 +185,12 @@ export class HaCecotecGrasshopperCard extends LitElement {
       if (start && e.start !== start) return true;
       return false;
     });
-    // Convert to API format: {day, start, end, trim}
+    // Convert to API format: {day, start, end, edge}
     const apiSchedule = filtered.map((e: any) => ({
       day: e.day_number,
       start: e.start,
       end: e.end,
-      trim: e.edge,
+      edge: e.edge,
     }));
     await this._hass?.callService("cecotec_grasshopper", "set_schedule", {
       entity_id: this._config.entity,
@@ -205,13 +205,13 @@ export class HaCecotecGrasshopperCard extends LitElement {
       day: e.day_number,
       start: e.start,
       end: e.end,
-      trim: e.edge,
+      edge: e.edge,
     }));
     apiSchedule.push({
       day: this._newDay,
       start: this._newStart,
       end: this._newEnd,
-      trim: this._newEdge,
+      edge: this._newEdge,
     });
     await this._hass?.callService("cecotec_grasshopper", "set_schedule", {
       entity_id: this._config.entity,
@@ -311,9 +311,7 @@ export class HaCecotecGrasshopperCard extends LitElement {
               <div class="schedule-entry">
                 <span class="entry-day">${entry.day || DAY_FULL[entry.day_number] || "?"}</span>
                 <span class="entry-time">${entry.start} - ${entry.end}</span>
-                <span class="entry-edge-badge ${entry.edge ? 'active' : ''}">
-                  <ha-icon icon="mdi:border-all-variant"></ha-icon>
-                </span>
+                ${entry.edge ? html`<span class="entry-edge-label">Edge</span>` : nothing}
                 <button class="remove-btn" @click=${() => this._removeScheduleEntry(entry.day_number, entry.start)}>
                   <ha-icon icon="mdi:delete"></ha-icon>
                 </button>
@@ -436,15 +434,13 @@ export class HaCecotecGrasshopperCard extends LitElement {
     }
     .entry-day { font-weight: 500; min-width: 80px; font-size: 13px; }
     .entry-time { flex: 1; font-size: 13px; color: var(--secondary-text-color); }
-    .entry-edge { --mdc-icon-size: 16px; color: var(--secondary-text-color); }
-    .entry-edge-badge {
-      --mdc-icon-size: 16px;
-      color: var(--disabled-text-color, #bbb);
-      opacity: 0.4;
-    }
-    .entry-edge-badge.active {
+    .entry-edge-label {
+      font-size: 11px;
+      font-weight: 500;
       color: var(--primary-color, #4CAF50);
-      opacity: 1;
+      background: rgba(76, 175, 80, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
     }
     .remove-btn {
       border: none;
