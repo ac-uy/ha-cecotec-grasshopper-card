@@ -107,6 +107,17 @@ export class HaCecotecGrasshopperCard extends LitElement {
     return this._hass?.states[prefix + "_rain_detected"];
   }
 
+  private get _modeEntity(): HassEntity | undefined {
+    const mowerName = this._config.entity.replace("lawn_mower.", "");
+    const states = this._hass?.states || {};
+    // Try select.<mowername> or select.<mowername>_mowing_mode
+    return states[`select.${mowerName}`] || states[`select.${mowerName}_mowing_mode`];
+  }
+
+  private get _mowingMode(): string {
+    return this._modeEntity?.state || "normal";
+  }
+
   private get _activity(): string {
     const state = this._entity?.state || "unknown";
     const map: Record<string, string> = {
@@ -165,6 +176,18 @@ export class HaCecotecGrasshopperCard extends LitElement {
 
   private async _startMowing() {
     await this._hass?.callService("lawn_mower", "start_mowing", { entity_id: this._config.entity });
+  }
+
+  private async _toggleMode() {
+    const modeEntity = this._modeEntity;
+    if (!modeEntity) return;
+    const mowerName = this._config.entity.replace("lawn_mower.", "");
+    const entityId = `select.${mowerName}`;
+    const newMode = this._mowingMode === "normal" ? "edge" : "normal";
+    await this._hass?.callService("select", "select_option", {
+      entity_id: entityId,
+      option: newMode,
+    });
   }
 
   private async _dock() {
@@ -287,12 +310,17 @@ export class HaCecotecGrasshopperCard extends LitElement {
     const state = this._entity?.state || "";
     const isDocked = state === "docked" || state === "idle";
     const isPaused = state === "paused";
+    const mode = this._mowingMode;
 
     return html`
       <div class="controls-section">
         ${isDocked ? html`
           <button class="ctrl-btn ctrl-btn--start" @click=${this._startMowing}>
             <ha-icon icon="mdi:play"></ha-icon> Start
+          </button>
+          <button class="ctrl-btn ctrl-btn--mode ${mode === 'edge' ? 'ctrl-btn--mode-active' : ''}" @click=${this._toggleMode}>
+            <ha-icon icon="mdi:${mode === 'edge' ? 'border-all-variant' : 'grass'}"></ha-icon>
+            ${mode === 'edge' ? 'Edge' : 'Normal'}
           </button>
         ` : isPaused ? html`
           <button class="ctrl-btn ctrl-btn--start" @click=${this._startMowing}>
@@ -422,6 +450,8 @@ export class HaCecotecGrasshopperCard extends LitElement {
     }
     .ctrl-btn:active { opacity: 0.7; }
     .ctrl-btn--start { background: var(--primary-color, #4CAF50); color: white; }
+    .ctrl-btn--mode { background: var(--secondary-background-color, #e0e0e0); color: var(--primary-text-color); }
+    .ctrl-btn--mode-active { background: var(--accent-color, #FF9800); color: white; }
     .ctrl-btn--pause { background: var(--warning-color, #FF9800); color: white; }
     .ctrl-btn--dock { background: var(--secondary-text-color, #757575); color: white; }
 
