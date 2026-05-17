@@ -178,20 +178,44 @@ export class HaCecotecGrasshopperCard extends LitElement {
   }
 
   private async _removeScheduleEntry(day: number, start?: string) {
-    await this._hass?.callService("cecotec_grasshopper", "remove_schedule_entry", {
+    // Use set_schedule with the entry removed from the current list
+    const current = this._schedule;
+    const filtered = current.filter((e: any) => {
+      if (e.day_number !== day) return true;
+      if (start && e.start !== start) return true;
+      return false;
+    });
+    // Convert to API format: {day, start, end, trim}
+    const apiSchedule = filtered.map((e: any) => ({
+      day: e.day_number,
+      start: e.start,
+      end: e.end,
+      trim: e.edge,
+    }));
+    await this._hass?.callService("cecotec_grasshopper", "set_schedule", {
       entity_id: this._config.entity,
-      day,
-      ...(start ? { start } : {}),
+      schedule: apiSchedule,
     });
   }
 
   private async _addScheduleEntry() {
-    await this._hass?.callService("cecotec_grasshopper", "add_schedule_entry", {
-      entity_id: this._config.entity,
+    // Use set_schedule with the new entry appended
+    const current = this._schedule;
+    const apiSchedule = current.map((e: any) => ({
+      day: e.day_number,
+      start: e.start,
+      end: e.end,
+      trim: e.edge,
+    }));
+    apiSchedule.push({
       day: this._newDay,
       start: this._newStart,
       end: this._newEnd,
-      edge: this._newEdge,
+      trim: this._newEdge,
+    });
+    await this._hass?.callService("cecotec_grasshopper", "set_schedule", {
+      entity_id: this._config.entity,
+      schedule: apiSchedule,
     });
     this._addingSchedule = false;
   }
@@ -287,7 +311,9 @@ export class HaCecotecGrasshopperCard extends LitElement {
               <div class="schedule-entry">
                 <span class="entry-day">${entry.day || DAY_FULL[entry.day_number] || "?"}</span>
                 <span class="entry-time">${entry.start} - ${entry.end}</span>
-                ${entry.edge ? html`<ha-icon icon="mdi:border-all-variant" class="entry-edge"></ha-icon>` : nothing}
+                <span class="entry-edge-badge ${entry.edge ? 'active' : ''}">
+                  <ha-icon icon="mdi:border-all-variant"></ha-icon>
+                </span>
                 <button class="remove-btn" @click=${() => this._removeScheduleEntry(entry.day_number, entry.start)}>
                   <ha-icon icon="mdi:delete"></ha-icon>
                 </button>
@@ -411,6 +437,15 @@ export class HaCecotecGrasshopperCard extends LitElement {
     .entry-day { font-weight: 500; min-width: 80px; font-size: 13px; }
     .entry-time { flex: 1; font-size: 13px; color: var(--secondary-text-color); }
     .entry-edge { --mdc-icon-size: 16px; color: var(--secondary-text-color); }
+    .entry-edge-badge {
+      --mdc-icon-size: 16px;
+      color: var(--disabled-text-color, #bbb);
+      opacity: 0.4;
+    }
+    .entry-edge-badge.active {
+      color: var(--primary-color, #4CAF50);
+      opacity: 1;
+    }
     .remove-btn {
       border: none;
       background: transparent;
