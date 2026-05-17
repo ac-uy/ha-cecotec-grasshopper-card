@@ -5,13 +5,13 @@ A custom Home Assistant Lovelace card for managing the Cecotec GrassHopper robot
 ## Features
 
 - **Mower status** — Activity state, battery level, rain sensor indicator
-- **Controls** — Start, Edge mow, Pause, Dock buttons (context-aware)
+- **Controls** — Start, Pause, Dock, Resume buttons (context-aware based on mower state)
 - **Schedule management** — View all scheduled entries, add new ones, remove individual days
 - **Rain indicator** — Shows when rain delay is active
 
 ## Requirements
 
-This card requires the [Cecotec GrassHopper integration](https://github.com/ac-uy/ha-cecotec-grasshopper) (v0.3.0+) to be installed and configured.
+This card requires the [Cecotec GrassHopper integration](https://github.com/ac-uy/ha-cecotec-grasshopper) to be installed and configured. The integration provides the `lawn_mower` entity, schedule sensors, and mower control services.
 
 ## Installation
 
@@ -54,6 +54,7 @@ title: GrassHopper  # optional
 |--------|------|----------|-------------|
 | `entity` | string | ✅ | Your `lawn_mower.*` entity ID |
 | `title` | string | ❌ | Card title (default: "GrassHopper") |
+| `schedule_entity` | string | ❌ | Schedule sensor entity (auto-detected if omitted) |
 
 ## Schedule Management
 
@@ -67,16 +68,14 @@ Schedule changes are sent to the mower via the Cecotec GrassHopper integration s
 
 ## Services Used
 
-This card calls the following services from the Cecotec GrassHopper integration:
+This card calls the following services:
 
 | Service | Description |
 |---------|-------------|
-| `lawn_mower.start_mowing` | Start mowing |
+| `lawn_mower.start_mowing` | Start mowing (respects mowing mode selector) |
 | `lawn_mower.dock` | Send mower home |
 | `lawn_mower.pause` | Pause mowing |
-| `cecotec_grasshopper.start_border_mowing` | Start edge/border mowing |
-| `cecotec_grasshopper.add_schedule_entry` | Add a schedule entry |
-| `cecotec_grasshopper.remove_schedule_entry` | Remove a schedule entry |
+| `cecotec_grasshopper.set_schedule` | Set the full mowing schedule (used for add/remove) |
 
 ## Development
 
