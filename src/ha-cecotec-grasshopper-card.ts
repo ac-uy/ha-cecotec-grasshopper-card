@@ -40,6 +40,7 @@ export class HaCecotecGrasshopperCard extends LitElement {
   @state() private _newEdge = true;
   @state() private _pendingRemove: string | null = null;
   @state() private _saving = false;
+  @state() private _schedulesExpanded = false;
 
   private _hass?: HomeAssistant;
 
@@ -370,34 +371,41 @@ export class HaCecotecGrasshopperCard extends LitElement {
 
     return html`
       <div class="schedule-section">
-        <div class="schedule-header">
-          <span class="schedule-title">Schedule</span>
-          <button class="add-btn" @click=${() => { this._addingSchedule = !this._addingSchedule; }}>
-            ${this._addingSchedule ? "Cancel" : "+ Add"}
-          </button>
+        <div class="schedule-header" @click=${() => { this._schedulesExpanded = !this._schedulesExpanded; }}>
+          <span class="schedule-title">
+            <ha-icon icon="mdi:chevron-${this._schedulesExpanded ? 'down' : 'right'}"></ha-icon>
+            Schedules ${schedule.length > 0 ? html`<span class="sched-count">${schedule.length}</span>` : nothing}
+          </span>
+          ${this._schedulesExpanded ? html`
+            <button class="add-btn" @click=${(e: Event) => { e.stopPropagation(); this._addingSchedule = !this._addingSchedule; }}>
+              ${this._addingSchedule ? "Cancel" : "+ Add"}
+            </button>
+          ` : nothing}
         </div>
 
-        ${this._addingSchedule ? this._renderAddForm() : nothing}
+        ${this._schedulesExpanded ? html`
+          ${this._addingSchedule ? this._renderAddForm() : nothing}
 
-        ${schedule.length === 0 ? html`
-          <div class="empty-schedule">No schedule configured</div>
-        ` : html`
-          <div class="schedule-list">
-            ${schedule.map((entry: any) => {
-              const key = `${entry.day_number}-${entry.start}`;
-              const removing = this._pendingRemove === key;
-              return html`
-              <div class="schedule-entry ${removing ? 'removing' : ''}">
-                <span class="entry-day">${entry.day || DAY_FULL[entry.day_number] || "?"}</span>
-                <span class="entry-time">${entry.start} - ${entry.end}</span>
-                ${entry.edge ? html`<span class="entry-edge-label">Edge</span>` : nothing}
-                <button class="remove-btn" @click=${() => this._removeScheduleEntry(entry.day_number, entry.start)} ?disabled=${removing}>
-                  ${removing ? html`<ha-icon icon="mdi:loading" class="spin"></ha-icon>` : html`<ha-icon icon="mdi:delete"></ha-icon>`}
-                </button>
-              </div>
-            `})}
-          </div>
-        `}
+          ${schedule.length === 0 && !this._addingSchedule ? html`
+            <div class="empty-schedule">No schedule configured</div>
+          ` : html`
+            <div class="schedule-list">
+              ${schedule.map((entry: any) => {
+                const key = `${entry.day_number}-${entry.start}`;
+                const removing = this._pendingRemove === key;
+                return html`
+                <div class="schedule-entry ${removing ? 'removing' : ''}">
+                  <span class="entry-day">${entry.day || DAY_FULL[entry.day_number] || "?"}</span>
+                  <span class="entry-time">${entry.start} - ${entry.end}</span>
+                  ${entry.edge ? html`<span class="entry-edge-label">Edge</span>` : nothing}
+                  <button class="remove-btn" @click=${() => this._removeScheduleEntry(entry.day_number, entry.start)} ?disabled=${removing}>
+                    ${removing ? html`<ha-icon icon="mdi:loading" class="spin"></ha-icon>` : html`<ha-icon icon="mdi:delete"></ha-icon>`}
+                  </button>
+                </div>
+              `})}
+            </div>
+          `}
+        ` : nothing}
       </div>
     `;
   }
@@ -515,8 +523,10 @@ export class HaCecotecGrasshopperCard extends LitElement {
       align-items: center;
       justify-content: space-between;
       margin-bottom: 8px;
+      cursor: pointer;
     }
-    .schedule-title { font-size: 14px; font-weight: 600; color: var(--primary-text-color); }
+    .schedule-title { font-size: 14px; font-weight: 600; color: var(--primary-text-color); display: flex; align-items: center; gap: 4px; --mdc-icon-size: 18px; }
+    .sched-count { font-size: 11px; background: var(--primary-color, #4CAF50); color: white; border-radius: 10px; padding: 1px 6px; font-weight: 500; }
     .add-btn {
       padding: 4px 12px;
       border: 1px solid var(--primary-color, #4CAF50);
