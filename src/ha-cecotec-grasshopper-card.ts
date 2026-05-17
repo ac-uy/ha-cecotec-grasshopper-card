@@ -24,6 +24,7 @@ interface CardConfig {
   type: string;
   entity: string;
   title?: string;
+  schedule_entity?: string;
 }
 
 const DAY_NAMES = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -75,9 +76,28 @@ export class HaCecotecGrasshopperCard extends LitElement {
   }
 
   private get _scheduleEntity(): HassEntity | undefined {
-    // Find the next_schedule sensor for this mower
-    const prefix = this._config.entity.replace("lawn_mower.", "sensor.");
-    return this._hass?.states[prefix + "_next_schedule"];
+    // Use explicit config if provided
+    if (this._config.schedule_entity) {
+      return this._hass?.states[this._config.schedule_entity];
+    }
+    // Try to auto-detect: look for sensor with "next_schedule" that belongs to this mower
+    const mowerName = this._config.entity.replace("lawn_mower.", "");
+    const states = this._hass?.states || {};
+    
+    // Try: sensor.<mowername>_next_schedule
+    const prefixed = `sensor.${mowerName}_next_schedule`;
+    if (states[prefixed]) return states[prefixed];
+    
+    // Try: sensor.next_schedule (generic)
+    if (states["sensor.next_schedule"]) return states["sensor.next_schedule"];
+    
+    // Search for any sensor with schedule_entries attribute from this integration
+    for (const [id, entity] of Object.entries(states)) {
+      if (id.startsWith("sensor.") && entity.attributes?.schedule_entries !== undefined) {
+        return entity;
+      }
+    }
+    return undefined;
   }
 
   private get _rainEntity(): HassEntity | undefined {
@@ -105,7 +125,34 @@ export class HaCecotecGrasshopperCard extends LitElement {
   }
 
   private get _schedule(): any[] {
-    return this._scheduleEntity?.attributes?.schedule || [];
+    const entity = this._scheduleEntity;
+    if (!entity) return [];
+    
+    // Try the schedule array attribute first
+    if (entity.attributes?.schedule && Array.isArray(entity.attributes.schedule) && entity.attributes.schedule.length > 0) {
+      return entity.attributes.schedule;
+    }
+    
+    // Fallback: parse from day-name attributes (e.g. tuesday: "18:00-21:00 (edge: ✓)")
+    const dayNames = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+    const entries: any[] = [];
+    for (let i = 0; i < dayNames.length; i++) {
+      const dayAttr = entity.attributes?.[dayNames[i]];
+      if (dayAttr && typeof dayAttr === "string") {
+        // Parse "18:00-21:00 (edge: ✓)" or "18:00-21:00 (trim: ✓)"
+        const match = dayAttr.match(/^(\d{2}:\d{2})-(\d{2}:\d{2})\s*\((?:edge|trim):\s*(✓|✗)\)/);
+        if (match) {
+          entries.push({
+            day: DAY_FULL[i + 1],
+            day_number: i + 1,
+            start: match[1],
+            end: match[2],
+            edge: match[3] === "✓",
+          });
+        }
+      }
+    }
+    return entries;
   }
 
   private get _isRaining(): boolean {
@@ -130,10 +177,11 @@ export class HaCecotecGrasshopperCard extends LitElement {
     await this._hass?.callService("cecotec_grasshopper", "start_border_mowing", { entity_id: this._config.entity });
   }
 
-  private async _removeScheduleEntry(day: number) {
+  private async _removeScheduleEntry(day: number, start?: string) {
     await this._hass?.callService("cecotec_grasshopper", "remove_schedule_entry", {
       entity_id: this._config.entity,
       day,
+      ...(start ? { start } : {}),
     });
   }
 
@@ -240,7 +288,7 @@ export class HaCecotecGrasshopperCard extends LitElement {
                 <span class="entry-day">${entry.day || DAY_FULL[entry.day_number] || "?"}</span>
                 <span class="entry-time">${entry.start} - ${entry.end}</span>
                 ${entry.edge ? html`<ha-icon icon="mdi:border-all-variant" class="entry-edge"></ha-icon>` : nothing}
-                <button class="remove-btn" @click=${() => this._removeScheduleEntry(entry.day_number)}>
+                <button class="remove-btn" @click=${() => this._removeScheduleEntry(entry.day_number, entry.start)}>
                   <ha-icon icon="mdi:delete"></ha-icon>
                 </button>
               </div>
