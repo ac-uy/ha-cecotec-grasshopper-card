@@ -174,8 +174,16 @@ export class HaCecotecGrasshopperCard extends LitElement {
 
   // ── Actions ──
 
+  private async _refreshEntity() {
+    await new Promise(r => setTimeout(r, 2000));
+    await this._hass?.callService("homeassistant", "update_entity", {
+      entity_id: this._config.entity,
+    });
+  }
+
   private async _startMowing() {
     await this._hass?.callService("lawn_mower", "start_mowing", { entity_id: this._config.entity });
+    await this._refreshEntity();
   }
 
   private async _toggleMode() {
@@ -192,23 +200,23 @@ export class HaCecotecGrasshopperCard extends LitElement {
   }
 
   private async _dock() {
+    // Mower must be paused before docking
+    const state = this._entity?.state || "";
+    if (state !== "paused") {
+      await this._hass?.callService("lawn_mower", "pause", { entity_id: this._config.entity });
+      await new Promise(r => setTimeout(r, 1000));
+    }
     await this._hass?.callService("lawn_mower", "dock", { entity_id: this._config.entity });
+    await this._refreshEntity();
   }
 
   private async _pause() {
     await this._hass?.callService("lawn_mower", "pause", { entity_id: this._config.entity });
+    await this._refreshEntity();
   }
 
   private async _refreshSchedule() {
-    // Force the coordinator to refresh, which updates the schedule sensor
-    const scheduleEntity = this._scheduleEntity;
-    if (scheduleEntity) {
-      // Small delay to let the API persist the change
-      await new Promise(r => setTimeout(r, 2000));
-      await this._hass?.callService("homeassistant", "update_entity", {
-        entity_id: this._config.entity,
-      });
-    }
+    await this._refreshEntity();
   }
 
   private async _removeScheduleEntry(day: number, start?: string) {
