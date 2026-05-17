@@ -175,6 +175,18 @@ export class HaCecotecGrasshopperCard extends LitElement {
     await this._hass?.callService("lawn_mower", "pause", { entity_id: this._config.entity });
   }
 
+  private async _refreshSchedule() {
+    // Force the coordinator to refresh, which updates the schedule sensor
+    const scheduleEntity = this._scheduleEntity;
+    if (scheduleEntity) {
+      // Small delay to let the API persist the change
+      await new Promise(r => setTimeout(r, 2000));
+      await this._hass?.callService("homeassistant", "update_entity", {
+        entity_id: this._config.entity,
+      });
+    }
+  }
+
   private async _removeScheduleEntry(day: number, start?: string) {
     const key = `${day}-${start}`;
     this._pendingRemove = key;
@@ -195,6 +207,7 @@ export class HaCecotecGrasshopperCard extends LitElement {
         entity_id: this._config.entity,
         schedule: apiSchedule,
       });
+      await this._refreshSchedule();
     } finally {
       this._pendingRemove = null;
     }
@@ -220,6 +233,7 @@ export class HaCecotecGrasshopperCard extends LitElement {
         entity_id: this._config.entity,
         schedule: apiSchedule,
       });
+      await this._refreshSchedule();
       this._addingSchedule = false;
     } finally {
       this._saving = false;
