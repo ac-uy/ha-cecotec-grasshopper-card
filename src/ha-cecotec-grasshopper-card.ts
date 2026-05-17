@@ -120,9 +120,11 @@ export class HaCecotecGrasshopperCard extends LitElement {
 
   private get _activity(): string {
     const state = this._entity?.state || "unknown";
+    // Use detailed_status attribute for more info when docked
+    const detail = this._entity?.attributes?.detailed_status;
     const map: Record<string, string> = {
       mowing: "Mowing",
-      docked: "Docked",
+      docked: detail === "charging" ? "Charging" : detail === "fully_charged" ? "Fully Charged" : "Docked",
       paused: "Paused",
       returning: "Returning",
       error: "Error",
