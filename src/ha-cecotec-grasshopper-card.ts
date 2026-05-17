@@ -179,14 +179,15 @@ export class HaCecotecGrasshopperCard extends LitElement {
   }
 
   private async _toggleMode() {
-    const modeEntity = this._modeEntity;
-    if (!modeEntity) return;
-    const mowerName = this._config.entity.replace("lawn_mower.", "");
-    const entityId = `select.${mowerName}`;
     const newMode = this._mowingMode === "normal" ? "edge" : "normal";
+    await this._setMode(newMode);
+  }
+
+  private async _setMode(mode: string) {
+    const mowerName = this._config.entity.replace("lawn_mower.", "");
     await this._hass?.callService("select", "select_option", {
-      entity_id: entityId,
-      option: newMode,
+      entity_id: `select.${mowerName}`,
+      option: mode,
     });
   }
 
@@ -318,10 +319,14 @@ export class HaCecotecGrasshopperCard extends LitElement {
           <button class="ctrl-btn ctrl-btn--start" @click=${this._startMowing}>
             <ha-icon icon="mdi:play"></ha-icon> Start
           </button>
-          <button class="ctrl-btn ctrl-btn--mode ${mode === 'edge' ? 'ctrl-btn--mode-active' : ''}" @click=${this._toggleMode}>
-            <ha-icon icon="mdi:${mode === 'edge' ? 'border-all-variant' : 'grass'}"></ha-icon>
-            ${mode === 'edge' ? 'Edge' : 'Normal'}
-          </button>
+          <div class="mode-toggle">
+            <button class="mode-opt ${mode === 'normal' ? 'active' : ''}" @click=${() => this._setMode('normal')}>
+              <ha-icon icon="mdi:grass"></ha-icon> Normal
+            </button>
+            <button class="mode-opt ${mode === 'edge' ? 'active' : ''}" @click=${() => this._setMode('edge')}>
+              <ha-icon icon="mdi:border-all-variant"></ha-icon> Edge
+            </button>
+          </div>
         ` : isPaused ? html`
           <button class="ctrl-btn ctrl-btn--start" @click=${this._startMowing}>
             <ha-icon icon="mdi:play"></ha-icon> Resume
@@ -450,10 +455,39 @@ export class HaCecotecGrasshopperCard extends LitElement {
     }
     .ctrl-btn:active { opacity: 0.7; }
     .ctrl-btn--start { background: var(--primary-color, #4CAF50); color: white; }
-    .ctrl-btn--mode { background: var(--secondary-background-color, #e0e0e0); color: var(--primary-text-color); }
-    .ctrl-btn--mode-active { background: var(--accent-color, #FF9800); color: white; }
     .ctrl-btn--pause { background: var(--warning-color, #FF9800); color: white; }
     .ctrl-btn--dock { background: var(--secondary-text-color, #757575); color: white; }
+
+    /* Mode toggle (segmented control) */
+    .mode-toggle {
+      display: flex;
+      border: 1px solid var(--divider-color, #e0e0e0);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .mode-opt {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 10px 12px;
+      border: none;
+      background: transparent;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      color: var(--secondary-text-color);
+      transition: all 200ms;
+      --mdc-icon-size: 18px;
+    }
+    .mode-opt.active {
+      background: var(--primary-color, #4CAF50);
+      color: white;
+    }
+    .mode-opt:not(.active):hover {
+      background: var(--secondary-background-color, #f5f5f5);
+    }
 
     /* Schedule */
     .schedule-section { }
