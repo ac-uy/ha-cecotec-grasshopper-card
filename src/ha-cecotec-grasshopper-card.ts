@@ -38,6 +38,8 @@ export class HaCecotecGrasshopperCard extends LitElement {
   @state() private _newStart = "09:00";
   @state() private _newEnd = "12:00";
   @state() private _newEdge = true;
+  @state() private _pendingRemove: string | null = null;
+  @state() private _saving = false;
 
   private _hass?: HomeAssistant;
 
@@ -173,51 +175,55 @@ export class HaCecotecGrasshopperCard extends LitElement {
     await this._hass?.callService("lawn_mower", "pause", { entity_id: this._config.entity });
   }
 
-  private async _startBorder() {
-    await this._hass?.callService("cecotec_grasshopper", "start_border_mowing", { entity_id: this._config.entity });
-  }
-
   private async _removeScheduleEntry(day: number, start?: string) {
-    // Use set_schedule with the entry removed from the current list
-    const current = this._schedule;
-    const filtered = current.filter((e: any) => {
-      if (e.day_number !== day) return true;
-      if (start && e.start !== start) return true;
-      return false;
-    });
-    // Convert to API format: {day, start, end, edge}
-    const apiSchedule = filtered.map((e: any) => ({
-      day: e.day_number,
-      start: e.start,
-      end: e.end,
-      edge: e.edge,
-    }));
-    await this._hass?.callService("cecotec_grasshopper", "set_schedule", {
-      entity_id: this._config.entity,
-      schedule: apiSchedule,
-    });
+    const key = `${day}-${start}`;
+    this._pendingRemove = key;
+    try {
+      const current = this._schedule;
+      const filtered = current.filter((e: any) => {
+        if (e.day_number !== day) return true;
+        if (start && e.start !== start) return true;
+        return false;
+      });
+      const apiSchedule = filtered.map((e: any) => ({
+        day: e.day_number,
+        start: e.start,
+        end: e.end,
+        edge: e.edge,
+      }));
+      await this._hass?.callService("cecotec_grasshopper", "set_schedule", {
+        entity_id: this._config.entity,
+        schedule: apiSchedule,
+      });
+    } finally {
+      this._pendingRemove = null;
+    }
   }
 
   private async _addScheduleEntry() {
-    // Use set_schedule with the new entry appended
-    const current = this._schedule;
-    const apiSchedule = current.map((e: any) => ({
-      day: e.day_number,
-      start: e.start,
-      end: e.end,
-      edge: e.edge,
-    }));
-    apiSchedule.push({
-      day: this._newDay,
-      start: this._newStart,
-      end: this._newEnd,
-      edge: this._newEdge,
-    });
-    await this._hass?.callService("cecotec_grasshopper", "set_schedule", {
-      entity_id: this._config.entity,
-      schedule: apiSchedule,
-    });
-    this._addingSchedule = false;
+    this._saving = true;
+    try {
+      const current = this._schedule;
+      const apiSchedule = current.map((e: any) => ({
+        day: e.day_number,
+        start: e.start,
+        end: e.end,
+        edge: e.edge,
+      }));
+      apiSchedule.push({
+        day: this._newDay,
+        start: this._newStart,
+        end: this._newEnd,
+        edge: this._newEdge,
+      });
+      await this._hass?.callService("cecotec_grasshopper", "set_schedule", {
+        entity_id: this._config.entity,
+        schedule: apiSchedule,
+      });
+      this._addingSchedule = false;
+    } finally {
+      this._saving = false;
+    }
   }
 
   // ── Render ──
@@ -265,8 +271,8 @@ export class HaCecotecGrasshopperCard extends LitElement {
 
   private _renderControls() {
     const state = this._entity?.state || "";
-    const isMowing = state === "mowing";
     const isDocked = state === "docked" || state === "idle";
+    const isPaused = state === "paused";
 
     return html`
       <div class="controls-section">
@@ -274,8 +280,12 @@ export class HaCecotecGrasshopperCard extends LitElement {
           <button class="ctrl-btn ctrl-btn--start" @click=${this._startMowing}>
             <ha-icon icon="mdi:play"></ha-icon> Start
           </button>
-          <button class="ctrl-btn ctrl-btn--border" @click=${this._startBorder}>
-            <ha-icon icon="mdi:border-all-variant"></ha-icon> Edge
+        ` : isPaused ? html`
+          <button class="ctrl-btn ctrl-btn--start" @click=${this._startMowing}>
+            <ha-icon icon="mdi:play"></ha-icon> Resume
+          </button>
+          <button class="ctrl-btn ctrl-btn--dock" @click=${this._dock}>
+            <ha-icon icon="mdi:home"></ha-icon> Dock
           </button>
         ` : html`
           <button class="ctrl-btn ctrl-btn--pause" @click=${this._pause}>
@@ -307,16 +317,19 @@ export class HaCecotecGrasshopperCard extends LitElement {
           <div class="empty-schedule">No schedule configured</div>
         ` : html`
           <div class="schedule-list">
-            ${schedule.map((entry: any) => html`
-              <div class="schedule-entry">
+            ${schedule.map((entry: any) => {
+              const key = `${entry.day_number}-${entry.start}`;
+              const removing = this._pendingRemove === key;
+              return html`
+              <div class="schedule-entry ${removing ? 'removing' : ''}">
                 <span class="entry-day">${entry.day || DAY_FULL[entry.day_number] || "?"}</span>
                 <span class="entry-time">${entry.start} - ${entry.end}</span>
                 ${entry.edge ? html`<span class="entry-edge-label">Edge</span>` : nothing}
-                <button class="remove-btn" @click=${() => this._removeScheduleEntry(entry.day_number, entry.start)}>
-                  <ha-icon icon="mdi:delete"></ha-icon>
+                <button class="remove-btn" @click=${() => this._removeScheduleEntry(entry.day_number, entry.start)} ?disabled=${removing}>
+                  ${removing ? html`<ha-icon icon="mdi:loading" class="spin"></ha-icon>` : html`<ha-icon icon="mdi:delete"></ha-icon>`}
                 </button>
               </div>
-            `)}
+            `})}
           </div>
         `}
       </div>
@@ -344,7 +357,9 @@ export class HaCecotecGrasshopperCard extends LitElement {
           <label>Edge mowing</label>
           <input type="checkbox" ?checked=${this._newEdge} @change=${(e: Event) => { this._newEdge = (e.target as HTMLInputElement).checked; }} />
         </div>
-        <button class="save-btn" @click=${this._addScheduleEntry}>Save</button>
+        <button class="save-btn" @click=${this._addScheduleEntry} ?disabled=${this._saving}>
+          ${this._saving ? "Saving..." : "Save"}
+        </button>
       </div>
     `;
   }
@@ -393,7 +408,6 @@ export class HaCecotecGrasshopperCard extends LitElement {
     }
     .ctrl-btn:active { opacity: 0.7; }
     .ctrl-btn--start { background: var(--primary-color, #4CAF50); color: white; }
-    .ctrl-btn--border { background: var(--secondary-text-color, #757575); color: white; }
     .ctrl-btn--pause { background: var(--warning-color, #FF9800); color: white; }
     .ctrl-btn--dock { background: var(--secondary-text-color, #757575); color: white; }
 
@@ -452,6 +466,9 @@ export class HaCecotecGrasshopperCard extends LitElement {
       --mdc-icon-size: 18px;
     }
     .remove-btn:hover { background: rgba(244, 67, 54, 0.1); }
+    .schedule-entry.removing { opacity: 0.4; transition: opacity 200ms; }
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
     /* Add form */
     .add-form {
